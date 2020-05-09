@@ -28,7 +28,7 @@ namespace EventSourceGenerator
         public int Opcode { get; internal set; }
         public int Version { get; internal set; }
         public List<EventArgument> Arguments { get; internal set; }
-        public List<object> ArgumentValues { get; internal set; }
+        public List<string> ArgumentValues { get; internal set; }
         public int ID { get; internal set; }
     }
 
@@ -244,41 +244,39 @@ namespace EventSourceGenerator
             if (isSelfDescribing && GetRandomBool())
             {
                 // Generate an array type                
-                return (s_rand.Next(13)) switch
+                return (s_rand.Next(12)) switch
                 {
                     0 => typeof(bool[]),
                     1 => typeof(byte[]),
                     2 => typeof(sbyte[]),
                     3 => typeof(char[]),
-                    4 => typeof(decimal[]),
-                    5 => typeof(double[]),
-                    6 => typeof(float[]),
-                    7 => typeof(int[]),
-                    8 => typeof(uint[]),
-                    9 => typeof(long[]),
-                    10 => typeof(ulong[]),
-                    11 => typeof(short[]),
-                    12 => typeof(ushort[]),
+                    4 => typeof(double[]),
+                    5 => typeof(float[]),
+                    6 => typeof(int[]),
+                    7 => typeof(uint[]),
+                    8 => typeof(long[]),
+                    9 => typeof(ulong[]),
+                    10 => typeof(short[]),
+                    11 => typeof(ushort[]),
                     _ => throw new Exception(),
                 };
             }
             else
             {
-                return (s_rand.Next(13)) switch
+                return (s_rand.Next(12)) switch
                 {
                     0 => typeof(bool),
                     1 => typeof(byte),
                     2 => typeof(sbyte),
                     3 => typeof(char),
-                    4 => typeof(decimal),
-                    5 => typeof(double),
-                    6 => typeof(float),
-                    7 => typeof(int),
-                    8 => typeof(uint),
-                    9 => typeof(long),
-                    10 => typeof(ulong),
-                    11 => typeof(short),
-                    12 => typeof(ushort),
+                    4 => typeof(double),
+                    5 => typeof(float),
+                    6 => typeof(int),
+                    7 => typeof(uint),
+                    8 => typeof(long),
+                    9 => typeof(ulong),
+                    10 => typeof(short),
+                    11 => typeof(ushort),
                     _ => throw new Exception(),
                 };
             }
@@ -297,8 +295,8 @@ namespace EventSourceGenerator
             WriteLine("        }");
             WriteLine("");
 
-            GenerateValidateEvents(eventSourceLayouts);
             GenerateWriteEvents(eventSourceLayouts);
+            GenerateValidateEvents(eventSourceLayouts);
 
             WriteLine("        static void Main(string[] args)");
             WriteLine("        {");
@@ -372,7 +370,7 @@ namespace EventSourceGenerator
 
         private static void GenerateMethodCallForLayout(string eventSourceName, EventLayout eventLayout)
         {
-            eventLayout.ArgumentValues = new List<object>();
+            eventLayout.ArgumentValues = new List<string>();
         
             Write($"            {eventSourceName}.{eventLayout.Name}(");
             for (int i = 0; i < eventLayout.Arguments.Count; ++i)
@@ -578,6 +576,7 @@ namespace EventSourceGenerator
                     for (int i = 0; i < eventLayout.Arguments.Count; ++i)
                     {
                         WriteLine($"                    if (traceEvent.PayloadNames[{i}] != \"{eventLayout.Arguments[i].Name}\") Console.WriteLine($\"Expected argument name {eventLayout.Arguments[i].Name} but got name {{traceEvent.PayloadNames[{i}]}} for EventSource={layout.Name} Event={eventLayout.Name}\");");
+                        WriteLine($"                    if ({GetCastString(eventLayout.Arguments[i].Type)}traceEvent.PayloadValue({i}) != {eventLayout.ArgumentValues[i]}) Console.WriteLine($\"Expected argument value {eventLayout.ArgumentValues[i].Replace("{", "{{").Replace("}", "}}")} but got value {{traceEvent.PayloadValue({i})}} for EventSource={layout.Name} Event={eventLayout.Name} Argument={eventLayout.Arguments[i].Name}\");");
                     }
 
                     WriteLine("                }");
@@ -588,6 +587,118 @@ namespace EventSourceGenerator
 
             WriteLine("        }");
             WriteLine("");
+        }
+
+        private static string GetCastString(Type type)
+        {
+            if (type == typeof(bool[]))
+            {
+                return "(bool[])";
+            }
+            else if (type == typeof(byte[]))
+            {
+                return "(byte[])";
+            }
+            else if (type == typeof(sbyte[]))
+            {
+                return "(sbyte[])";
+            }
+            else if (type == typeof(char[]))
+            {
+                return "(char[])";
+            }
+            else if (type == typeof(decimal[]))
+            {
+                return "(decimal[])";
+            }
+            else if (type == typeof(double[]))
+            {
+                return "(double[])";
+            }
+            else if (type == typeof(float[]))
+            {
+                return "(float[])";
+            }
+            else if (type == typeof(int[]))
+            {
+                return "(int[])";
+            }
+            else if (type == typeof(uint[]))
+            {
+                return "(uint[])";
+            }
+            else if (type == typeof(long[]))
+            {
+                return "(long[])";
+            }
+            else if (type == typeof(ulong[]))
+            {
+                return "(ulong[])";
+            }
+            else if (type == typeof(short[]))
+            {
+                return "(short[])";
+            }
+            else if (type == typeof(ushort[]))
+            {
+                return "(ushort[])";
+            }
+            else if (type == typeof(bool))
+            {
+                return "(bool)";
+            }
+            else if (type == typeof(byte))
+            {
+                return "(byte)";
+            }
+            else if (type == typeof(sbyte))
+            {
+                return "(sbyte)";
+            }
+            else if (type == typeof(char))
+            {
+                return "(char)";
+            }
+            else if (type == typeof(decimal))
+            {
+                return "(decimal)";
+            }
+            else if (type == typeof(double))
+            {
+                return "(double)";
+            }
+            else if (type == typeof(float))
+            {
+                return "(float)";
+            }
+            else if (type == typeof(int))
+            {
+                return "(int)";
+            }
+            else if (type == typeof(uint))
+            {
+                return "(uint)";
+            }
+            else if (type == typeof(long))
+            {
+                return "(long)";
+            }
+            else if (type == typeof(ulong))
+            {
+                return "(ulong)";
+            }
+            else if (type == typeof(short))
+            {
+                return "(int)";
+            }
+            else if (type == typeof(ushort))
+            {
+                return "(uint)";
+            }
+            else
+            {
+                throw new ArgumentException();
+            }
         }
 
         private static bool GetRandomBool()
