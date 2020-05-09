@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.Tracing;
+using System.IO;
 using System.Linq;
+using System.Text;
 
 namespace EventSourceGenerator
 {
@@ -21,9 +23,9 @@ namespace EventSourceGenerator
     class EventLayout
     {
         public string Name { get; internal set; }
-        public EventLevel Level { get; internal set; }
-        public EventKeywords Keywords { get; internal set; }
-        public EventOpcode Opcode { get; internal set; }
+        public int Level { get; internal set; }
+        public int Keywords { get; internal set; }
+        public int Opcode { get; internal set; }
         public int Version { get; internal set; }
         public List<EventArgument> Arguments { get; internal set; }
         public int ID { get; internal set; }
@@ -33,49 +35,68 @@ namespace EventSourceGenerator
     {
         static Random s_rand = new Random();
 
+        //static readonly int s_numberOfEventSources = 20;
+        //static readonly int s_maxNumberOfEvents = 100;
+        //static readonly int s_maxNumberOfEventArguments = 20;
+        //static readonly int s_maxArrayElements = 1024;
+
+        static readonly int s_numberOfEventSources = 20;
+        static readonly int s_maxNumberOfEvents = 10;
+        static readonly int s_maxNumberOfEventArguments = 10;
+        static readonly int s_maxArrayElements = 5;
+
+        static StreamWriter s_output;
+
+        static void WriteLine(string line)
+        {
+            s_output.WriteLine(line);
+        }
+
+        static void Write(string line)
+        {
+            s_output.Write(line);
+        }
+
         static void Main(string[] args)
         {
-            // TODO: once done testing, unleash the fury!
-            //int numberOfEventSources      = 200;
-            //int maxNumberOfEvents         = 5000;
-            //int maxNumberOfEventArguments = 1000;
-            int numberOfEventSources = 2;
-            int maxNumberOfEvents = 5;
-            int maxNumberOfEventArguments = 10;
-
-            WritePreEventSourceFileContents();
-
-            List<string> eventSourceNames = Enumerable.Range(0, numberOfEventSources).Select(i => "TestEventSource" + i.ToString()).ToList();
-            Dictionary<string, EventSourceLayout> eventSourceLayouts = new Dictionary<string, EventSourceLayout>();
-            foreach (string name in eventSourceNames)
+            string outputPath = @"C:\work\eventsource_fuzzer_test\Program.cs";
+            using (s_output = new StreamWriter(new FileStream(outputPath, FileMode.Create)))
             {
-                EventSourceLayout layout = GenerateEventSource(name, maxNumberOfEvents, maxNumberOfEventArguments);
-                eventSourceLayouts.Add(name, layout);
-            }
+                WritePreEventSourceFileContents();
 
-            WritePostEventSourceFileContents(eventSourceLayouts);
+                List<string> eventSourceNames = Enumerable.Range(0, s_numberOfEventSources).Select(i => "TestEventSource" + i.ToString()).ToList();
+                Dictionary<string, EventSourceLayout> eventSourceLayouts = new Dictionary<string, EventSourceLayout>();
+                foreach (string name in eventSourceNames)
+                {
+                    Console.WriteLine($"Writing EventSource {name}");
+                    EventSourceLayout layout = GenerateEventSource(name, s_maxNumberOfEvents, s_maxNumberOfEventArguments);
+                    eventSourceLayouts.Add(name, layout);
+                }
+
+                WritePostEventSourceFileContents(eventSourceLayouts);
+            }
         }
 
         private static void WritePreEventSourceFileContents()
         {
-            Console.WriteLine("using System;");
-            Console.WriteLine("using System.Collections;");
-            Console.WriteLine("using System.Collections.Generic;");
-            Console.WriteLine("using System.Collections.ObjectModel;");
-            Console.WriteLine("using System.Diagnostics;");
-            Console.WriteLine("using System.Diagnostics.Tracing;");
-            Console.WriteLine("using System.Globalization;");
-            Console.WriteLine("using System.IO;");
-            Console.WriteLine("using System.Linq;");
-            Console.WriteLine("using System.Runtime.CompilerServices;");
-            Console.WriteLine("using System.Text;");
-            Console.WriteLine("using System.Threading;");
-            Console.WriteLine("using Microsoft.Diagnostics.NETCore.Client;");
-            Console.WriteLine("using Microsoft.Diagnostics.Tracing;");
-            Console.WriteLine("using Microsoft.Diagnostics.Tracing.Etlx;");
-            Console.WriteLine("");
-            Console.WriteLine("namespace EventSourceTest");
-            Console.WriteLine("{");
+            WriteLine("using System;");
+            WriteLine("using System.Collections;");
+            WriteLine("using System.Collections.Generic;");
+            WriteLine("using System.Collections.ObjectModel;");
+            WriteLine("using System.Diagnostics;");
+            WriteLine("using System.Diagnostics.Tracing;");
+            WriteLine("using System.Globalization;");
+            WriteLine("using System.IO;");
+            WriteLine("using System.Linq;");
+            WriteLine("using System.Runtime.CompilerServices;");
+            WriteLine("using System.Text;");
+            WriteLine("using System.Threading;");
+            WriteLine("using Microsoft.Diagnostics.NETCore.Client;");
+            WriteLine("using Microsoft.Diagnostics.Tracing;");
+            WriteLine("using Microsoft.Diagnostics.Tracing.Etlx;");
+            WriteLine("");
+            WriteLine("namespace EventSourceTest");
+            WriteLine("{");
         }
 
         private static EventSourceLayout GenerateEventSource(string name, int maxNumberOfEvents, int maxNumberOfEventArguments)
@@ -83,29 +104,29 @@ namespace EventSourceGenerator
             int numberOfEvents = s_rand.Next(maxNumberOfEvents);
             bool isSelfDescribing = GetRandomBool();
 
-            Console.WriteLine($"    class {name}: EventSource");
-            Console.WriteLine("    {");
-            Console.WriteLine($"        public {name}()");
+            WriteLine($"    class {name}: EventSource");
+            WriteLine("    {");
+            WriteLine($"        public {name}()");
 
             if (isSelfDescribing)
             {
-                Console.WriteLine("            : base(EventSourceSettings.EtwSelfDescribingEventFormat)");
+                WriteLine("            : base(EventSourceSettings.EtwSelfDescribingEventFormat)");
             }
 
-            Console.WriteLine("        {");
-            Console.WriteLine("             // Empty constructor body");
-            Console.WriteLine("        }");
-            Console.WriteLine("");
+            WriteLine("        {");
+            WriteLine("             // Empty constructor body");
+            WriteLine("        }");
+            WriteLine("");
 
             List<EventLayout> events = new List<EventLayout>();
             for (int i = 0; i < numberOfEvents; ++i)
             {
                 int numberOfEventArgs = s_rand.Next(maxNumberOfEventArguments);
-                events.Add(GenerateEvent(i, numberOfEventArgs, isSelfDescribing));
+                events.Add(GenerateEvent(i + 1, numberOfEventArgs, isSelfDescribing));
             }
 
-            Console.WriteLine("    }");
-            Console.WriteLine("");
+            WriteLine("    }");
+            WriteLine("");
 
             return new EventSourceLayout()
             {
@@ -126,39 +147,39 @@ namespace EventSourceGenerator
             bool hasVersion = GetRandomBool();
             int version = 0;
 
-            Console.WriteLine("");
+            WriteLine("");
 
             // Write EventAttribute
-            Console.Write($"        [Event({id}");
+            Write($"        [Event({id}");
             if (hasLevel)
             {
                 level = s_rand.Next((int)EventLevel.Verbose);
-                Console.Write($", Level = (EventLevel){level}");
+                Write($", Level = (EventLevel){level}");
             }
 
             if (hasKeywords)
             {
                 keywords = s_rand.Next();
-                Console.Write($", Keywords = (EventKeywords){keywords}");
+                Write($", Keywords = (EventKeywords){keywords}");
             }
 
             if (hasOpcode)
             {
                 opcode = s_rand.Next((int)EventOpcode.Receive);
-                Console.Write($", Opcode = (EventOpcode){opcode}");
+                Write($", Opcode = (EventOpcode){opcode}");
             }
 
             if (hasVersion)
             {
                 version = s_rand.Next(50);
-                Console.Write($", Version = {version}");
+                Write($", Version = {version}");
             }
 
             // End of EventAttribute
-            Console.WriteLine(")]");
+            WriteLine(")]");
 
             string methodName = "TestEvent" + id.ToString();
-            Console.Write($"        public void {methodName}(");
+            Write($"        public void {methodName}(");
             List<EventArgument> arguments = Enumerable.Range(0, numberOfEventArgs).Select(i =>
             {
                 return new EventArgument()
@@ -171,46 +192,46 @@ namespace EventSourceGenerator
             for (int i = 0; i < arguments.Count; ++i)
             {
                 EventArgument argument = arguments[i];
-                Console.Write($"{argument.Type} {argument.Name}");
+                Write($"{argument.Type} {argument.Name}");
                 if (i < arguments.Count - 1)
                 {
-                    Console.Write(", ");
+                    Write(", ");
                 }
             }
 
             // End of argument list
-            Console.WriteLine(")");
+            WriteLine(")");
 
-            Console.WriteLine("        {");
-            
-            Console.Write($"            WriteEvent({id}");
+            WriteLine("        {");
+
+            Write($"            WriteEvent({id}");
             if (arguments.Count > 0)
             {
-                Console.Write(", ");
+                Write(", ");
             }
 
             for (int i = 0; i < arguments.Count; ++i)
             {
                 EventArgument argument = arguments[i];
-                Console.Write(argument.Name);
+                Write(argument.Name);
                 if (i < arguments.Count - 1)
                 {
-                    Console.Write(", ");
+                    Write(", ");
                 }
             }
 
             // End of method call
-            Console.WriteLine(");");
+            WriteLine(");");
 
-            Console.WriteLine("        }");
+            WriteLine("        }");
 
             return new EventLayout()
             {
                 Name = methodName,
                 ID = id,
-                Level = (EventLevel)level,
-                Keywords = (EventKeywords)keywords,
-                Opcode = (EventOpcode)opcode,
+                Level = level,
+                Keywords = keywords,
+                Opcode = opcode,
                 Version = version,
                 Arguments = arguments
             };
@@ -264,80 +285,288 @@ namespace EventSourceGenerator
 
         private static void WritePostEventSourceFileContents(Dictionary<string, EventSourceLayout> eventSourceLayouts)
         {
-            Console.WriteLine("    class Program");
-            Console.WriteLine("    {");
-            Console.WriteLine("        public static EventPipeSession AttachEventPipeSessionToSelf(IEnumerable<EventPipeProvider> providers)");
-            Console.WriteLine("        {");
-            Console.WriteLine("            int processId = Process.GetCurrentProcess().Id;");
-            Console.WriteLine("            DiagnosticsClient client = new DiagnosticsClient(processId);");
-            Console.WriteLine("            return client.StartEventPipeSession(providers, /* requestRunDown */ false);");
-            Console.WriteLine("        }");
+            WriteLine("    class Program");
+            WriteLine("    {");
+            WriteLine("        static int s_successCount = 0;");
+            WriteLine("        public static EventPipeSession AttachEventPipeSessionToSelf(IEnumerable<EventPipeProvider> providers)");
+            WriteLine("        {");
+            WriteLine("            int processId = Process.GetCurrentProcess().Id;");
+            WriteLine("            DiagnosticsClient client = new DiagnosticsClient(processId);");
+            WriteLine("            return client.StartEventPipeSession(providers, /* requestRunDown */ false);");
+            WriteLine("        }");
+            WriteLine("");
 
             GenerateValidateEvents(eventSourceLayouts);
             GenerateWriteEvents(eventSourceLayouts);
 
-            Console.WriteLine("        static void Main(string[] args)");
-            Console.WriteLine("        {");
-            Console.WriteLine("            List<EventPipeProvider> providers = new List<EventPipeProvider>");
-            Console.WriteLine("            {");
-            Console.WriteLine("                new EventPipeProvider(\"Microsoft - Windows - DotNETRuntime\", EventLevel.Informational, (long)EventKeywords.All),");
+            WriteLine("        static void Main(string[] args)");
+            WriteLine("        {");
+            WriteLine("            List<EventPipeProvider> providers = new List<EventPipeProvider>");
+            WriteLine("            {");
+            WriteLine("                new EventPipeProvider(\"Microsoft - Windows - DotNETRuntime\", EventLevel.Informational, (long)EventKeywords.All),");
 
             foreach (string name in eventSourceLayouts.Keys)
             {
-                Console.WriteLine($"                new EventPipeProvider(\"{name}\", EventLevel.Informational, (long)EventKeywords.All),");
+                WriteLine($"                new EventPipeProvider(\"{name}\", EventLevel.Informational, (long)EventKeywords.All),");
             }
 
-            Console.WriteLine("            };");
-            Console.WriteLine("");
-            Console.WriteLine("            using (EventPipeSession session = AttachEventPipeSessionToSelf(providers))");
-            Console.WriteLine("            {");
-            Console.WriteLine("                WriteEvents();");
-            Console.WriteLine("                ManualResetEvent allEventsReceivedEvent = new ManualResetEvent(false);");
-            Console.WriteLine("");
-            Console.WriteLine("                int eventCount = 0;");
-            Console.WriteLine("                var source = new EventPipeEventSource(session.EventStream);");
-            Console.WriteLine("                source.Dynamic.All += (TraceEvent traceEvent) =>");
-            Console.WriteLine("                {");
-            Console.WriteLine("                    ++eventCount;");
-            Console.WriteLine("                    ValidateEvent(traceEvent);");
-            Console.WriteLine("                };");
+            WriteLine("            };");
+            WriteLine("");
+            WriteLine("            using (EventPipeSession session = AttachEventPipeSessionToSelf(providers))");
+            WriteLine("            {");
+            WriteLine("                WriteEvents();");
+            WriteLine("                ManualResetEvent allEventsReceivedEvent = new ManualResetEvent(false);");
+            WriteLine("");
+            WriteLine("                int eventCount = 0;");
+            WriteLine("                var source = new EventPipeEventSource(session.EventStream);");
+            WriteLine("                source.Dynamic.All += (TraceEvent traceEvent) =>");
+            WriteLine("                {");
+            WriteLine("                    ++eventCount;");
+            WriteLine("                    ValidateEvent(traceEvent);");
+            WriteLine("                };");
 
-            Console.WriteLine("");
-            Console.WriteLine("                Thread processingThread = new Thread(new ThreadStart(() =>");
-            Console.WriteLine("                {");
-            Console.WriteLine("                    source.Process();");
-            Console.WriteLine("                }));");
-            Console.WriteLine("");
-            Console.WriteLine("                Console.WriteLine(\"Starting processing thread\");");
-            Console.WriteLine("                processingThread.Start();");
-            Console.WriteLine("");
-            Console.WriteLine("                session.Stop();");
-            Console.WriteLine("");
-            Console.WriteLine("                Console.WriteLine(\"Joining processing thread\");");
-            Console.WriteLine("                processingThread.Join();");
-            Console.WriteLine("            }");
-            Console.WriteLine("        }");
-            Console.WriteLine("    }");
-            Console.WriteLine("}");
+            WriteLine("");
+            WriteLine("                Thread processingThread = new Thread(new ThreadStart(() =>");
+            WriteLine("                {");
+            WriteLine("                    source.Process();");
+            WriteLine("                }));");
+            WriteLine("");
+            WriteLine("                Console.WriteLine(\"Starting processing thread\");");
+            WriteLine("                processingThread.Start();");
+            WriteLine("");
+            WriteLine("                session.Stop();");
+            WriteLine("");
+            WriteLine("                Console.WriteLine(\"Joining processing thread\");");
+            WriteLine("                processingThread.Join();");
+            WriteLine("                Console.WriteLine($\"Number of events successfully validated={s_successCount}\");");
+            WriteLine("            }");
+            WriteLine("        }");
+            WriteLine("    }");
+            WriteLine("}");
         }
 
         private static void GenerateWriteEvents(Dictionary<string, EventSourceLayout> eventSourceLayouts)
         {
-            Console.WriteLine("        static void WriteEvents()");
-            Console.WriteLine("        {");
-            Console.WriteLine("            throw new NotImplementedException();");
-            Console.WriteLine("        }");
-            Console.WriteLine("");
+            WriteLine("        static void WriteEvents()");
+            WriteLine("        {");
+
+            for (int i = 0; i < eventSourceLayouts.Keys.Count; ++i)
+            {
+                string name = eventSourceLayouts.Keys.ElementAt(i);
+                string eventSourceName = "eventSource" + i.ToString();
+                WriteLine($"            {name} {eventSourceName} = new {name}(); ");
+
+                EventSourceLayout layout = eventSourceLayouts[name];
+                foreach (EventLayout eventLayout in layout.EventLayouts)
+                {
+                    GenerateMethodCallForLayout(eventSourceName, eventLayout);
+                }
+
+                WriteLine("");
+            }
+
+            WriteLine("        }");
+            WriteLine("");
+        }
+
+        private static void GenerateMethodCallForLayout(string eventSourceName, EventLayout eventLayout)
+        {
+            Write($"            {eventSourceName}.{eventLayout.Name}(");
+            for (int i = 0; i < eventLayout.Arguments.Count; ++i)
+            {
+                EventArgument argument = eventLayout.Arguments[i];
+                Write(GenerateRandomArgumentValue(argument));
+
+                if (i < eventLayout.Arguments.Count - 1)
+                {
+                    Write(", ");
+                }
+            }
+
+            WriteLine(");");
+            WriteLine("");
+        }
+
+        private static string GenerateRandomArgumentValue(EventArgument argument)
+        {
+            int arrayElements = s_rand.Next(s_maxArrayElements);
+            Type type = argument.Type;
+
+            if (type.IsArray)
+            {
+                object[] objArray = null;
+                string castString = null;
+                if (type == typeof(bool[]))
+                {
+                    castString = "(bool)";
+                    objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => GetRandomBool().ToString().ToLower()).ToArray();
+                }
+                else if (type == typeof(byte[]))
+                {
+                    castString = "(byte)";
+                    objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(byte.MinValue, byte.MaxValue)).ToArray();
+                }
+                else if (type == typeof(sbyte[]))
+                {
+                    castString = "(sbyte)";
+                    objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(sbyte.MinValue, sbyte.MaxValue)).ToArray();
+                }
+                else if (type == typeof(char[]))
+                {
+                    castString = "(char)";
+                    objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(char.MinValue, char.MaxValue)).ToArray();
+                }
+                else if (type == typeof(decimal[]))
+                {
+                    objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(int.MinValue, int.MaxValue)).ToArray();
+                }
+                else if (type == typeof(double[]))
+                {
+                    objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.NextDouble()).ToArray();
+                }
+                else if (type == typeof(float[]))
+                {
+                    castString = "(float)";
+                    objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.NextDouble()).ToArray();
+                }
+                else if (type == typeof(int[]))
+                {
+                    objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(int.MinValue, int.MaxValue)).ToArray();
+                }
+                else if (type == typeof(uint[]))
+                {
+                    castString = "(uint)";
+                    objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(0, int.MaxValue)).ToArray();
+                }
+                else if (type == typeof(long[]))
+                {
+                    objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(int.MinValue, int.MaxValue)).ToArray();
+                }
+                else if (type == typeof(ulong[]))
+                {
+                    castString = "(ulong)";
+                    objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(0, int.MaxValue)).ToArray();
+                }
+                else if (type == typeof(short[]))
+                {
+                    castString = "(short)";
+                    objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(short.MinValue, short.MaxValue)).ToArray();
+                }
+                else if (type == typeof(ushort[]))
+                {
+                    castString = "(ushort)";
+                    objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(ushort.MinValue, ushort.MaxValue)).ToArray();
+                }
+
+                StringBuilder arrayString = new StringBuilder();
+                arrayString.Append($"new {type} {{");
+                for (int i = 0; i < objArray.Length; ++i)
+                {
+                    if (castString != null)
+                    {
+                        arrayString.Append(castString);
+                    }
+
+                    arrayString.Append(objArray[i]);
+                    if (i < objArray.Length - 1)
+                    {
+                        arrayString.Append(", ");
+                    }
+                }
+                arrayString.Append("}");
+
+                return arrayString.ToString();
+            }
+            else if (type == typeof(bool))
+            {
+                return GetRandomBool().ToString().ToLower();
+            }
+            else if (type == typeof(byte))
+            {
+                return "(byte)" + s_rand.Next(byte.MinValue, byte.MaxValue).ToString();
+            }
+            else if (type == typeof(sbyte))
+            {
+                return "(sbyte)" + s_rand.Next(sbyte.MinValue, sbyte.MaxValue).ToString();
+            }
+            else if (type == typeof(char))
+            {
+                return "(char)" + s_rand.Next(char.MinValue, char.MaxValue).ToString();
+            }
+            else if (type == typeof(decimal))
+            {
+                return s_rand.Next(int.MinValue, int.MaxValue).ToString();
+            }
+            else if (type == typeof(double))
+            {
+                return s_rand.NextDouble().ToString();
+            }
+            else if (type == typeof(float))
+            {
+                return "(float)" + s_rand.NextDouble().ToString();
+            }
+            else if (type == typeof(int))
+            {
+                return s_rand.Next(int.MinValue, int.MaxValue).ToString();
+            }
+            else if (type == typeof(uint))
+            {
+                return "(uint)" + s_rand.Next(0, int.MaxValue).ToString();
+            }
+            else if (type == typeof(long))
+            {
+                return s_rand.Next(int.MinValue, int.MaxValue).ToString();
+            }
+            else if (type == typeof(ulong))
+            {
+                return "(ulong)" + s_rand.Next(0, int.MaxValue).ToString();
+            }
+            else if (type == typeof(short))
+            {
+                return "(short)" + s_rand.Next(short.MinValue, short.MaxValue).ToString();
+            }
+            else if (type == typeof(ushort))
+            {
+                return "(ushort)" + s_rand.Next(0, ushort.MaxValue).ToString();
+            }
+            else
+            {
+                throw new ArgumentException();
+            }
         }
 
         private static void GenerateValidateEvents(Dictionary<string, EventSourceLayout> eventSourceLayouts)
         {
-            Console.WriteLine("        static void ValidateEvent(TraceEvent traceEvent)");
-            Console.WriteLine("        {");
-            Console.WriteLine("            // TODO: implement");
-            Console.WriteLine("            throw new NotImplementedException();");
-            Console.WriteLine("        }");
-            Console.WriteLine("");
+            WriteLine("        static void ValidateEvent(TraceEvent traceEvent)");
+            WriteLine("        {");
+            WriteLine("            Console.WriteLine($\"Attempting to validate event {traceEvent}\");");
+
+            foreach (string name in eventSourceLayouts.Keys)
+            {
+                EventSourceLayout layout = eventSourceLayouts[name];
+                WriteLine($"            if (traceEvent.ProviderName == \"{layout.Name}\")");
+                WriteLine("            {");
+
+                foreach (EventLayout eventLayout in layout.EventLayouts)
+                {
+                    WriteLine($"                if (traceEvent.EventName == \"{eventLayout.Name}\")");
+                    WriteLine("                {");
+
+                    WriteLine($"                    if ((int)traceEvent.ID != {eventLayout.ID}) Console.WriteLine($\"Expected ID {eventLayout.ID} but got ID {{(int)traceEvent.ID}} for EventSource={layout.Name} Event={eventLayout.Name}\");");
+                    WriteLine($"                    if ((int)traceEvent.Level != {eventLayout.Level}) Console.WriteLine($\"Expected level {eventLayout.Level} but got level {{(int)traceEvent.Level}} for EventSource={layout.Name} Event={eventLayout.Name}\");");
+                    WriteLine($"                    if ((int)traceEvent.Keywords != {eventLayout.Keywords}) Console.WriteLine($\"Expected keywords {eventLayout.Keywords} but got keywords{{(int)traceEvent.Keywords}} for EventSource={layout.Name} Event={eventLayout.Name}\");");
+                    WriteLine($"                    if ((int)traceEvent.Opcode != {eventLayout.Opcode}) Console.WriteLine($\"Expected opcode {eventLayout.Opcode} but got opcode {{(int)traceEvent.Opcode}} for EventSource={layout.Name} Event={eventLayout.Name}\");");
+                    WriteLine($"                    if ((int)traceEvent.Version != {eventLayout.Version}) Console.WriteLine($\"Expected version {eventLayout.Version} but got version {{(int)traceEvent.Version}} for EventSource={layout.Name} Event={eventLayout.Name}\");");
+                    WriteLine("                     ++s_successCount;");
+
+                    WriteLine("                }");
+                }
+
+                WriteLine("            }");
+            }
+
+            WriteLine("        }");
+            WriteLine("");
         }
 
         private static bool GetRandomBool()
