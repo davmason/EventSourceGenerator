@@ -28,6 +28,7 @@ namespace EventSourceGenerator
         public int Opcode { get; internal set; }
         public int Version { get; internal set; }
         public List<EventArgument> Arguments { get; internal set; }
+        public List<object> ArgumentValues { get; internal set; }
         public int ID { get; internal set; }
     }
 
@@ -371,11 +372,15 @@ namespace EventSourceGenerator
 
         private static void GenerateMethodCallForLayout(string eventSourceName, EventLayout eventLayout)
         {
+            eventLayout.ArgumentValues = new List<object>();
+        
             Write($"            {eventSourceName}.{eventLayout.Name}(");
             for (int i = 0; i < eventLayout.Arguments.Count; ++i)
             {
                 EventArgument argument = eventLayout.Arguments[i];
-                Write(GenerateRandomArgumentValue(argument));
+                string argValue = GenerateRandomArgumentValue(argument);
+                eventLayout.ArgumentValues.Add(argValue);
+                Write(argValue);
 
                 if (i < eventLayout.Arguments.Count - 1)
                 {
@@ -537,9 +542,10 @@ namespace EventSourceGenerator
 
         private static void GenerateValidateEvents(Dictionary<string, EventSourceLayout> eventSourceLayouts)
         {
+            // TODO: validate payload too... have to rework a lot of stuff though.
             WriteLine("        static void ValidateEvent(TraceEvent traceEvent)");
             WriteLine("        {");
-            WriteLine("            Console.WriteLine($\"Attempting to validate event {traceEvent}\");");
+            //WriteLine("            Console.WriteLine($\"Attempting to validate event {traceEvent}\");");
 
             foreach (string name in eventSourceLayouts.Keys)
             {
@@ -552,12 +558,27 @@ namespace EventSourceGenerator
                     WriteLine($"                if (traceEvent.EventName == \"{eventLayout.Name}\")");
                     WriteLine("                {");
 
-                    WriteLine($"                    if ((int)traceEvent.ID != {eventLayout.ID}) Console.WriteLine($\"Expected ID {eventLayout.ID} but got ID {{(int)traceEvent.ID}} for EventSource={layout.Name} Event={eventLayout.Name}\");");
+                    // Self describing EventSources don't report their IDs/Versions correctly over ETW/EventPipe
+                    if (!layout.IsSelfDescribing)
+                    {
+                        WriteLine($"                    if ((int)traceEvent.ID != {eventLayout.ID}) Console.WriteLine($\"Expected ID {eventLayout.ID} but got ID {{(int)traceEvent.ID}} for EventSource={layout.Name} Event={eventLayout.Name}\");");
+                        WriteLine($"                    if ((int)traceEvent.Version != {eventLayout.Version}) Console.WriteLine($\"Expected version {eventLayout.Version} but got version {{(int)traceEvent.Version}} for EventSource={layout.Name} Event={eventLayout.Name}\");");
+                    }
+                    else
+                    {
+                        WriteLine("                    // Skipping ID/Version validation because this EventSource is using SelfDescribing events.");
+                    }
+
                     WriteLine($"                    if ((int)traceEvent.Level != {eventLayout.Level}) Console.WriteLine($\"Expected level {eventLayout.Level} but got level {{(int)traceEvent.Level}} for EventSource={layout.Name} Event={eventLayout.Name}\");");
                     WriteLine($"                    if ((int)traceEvent.Keywords != {eventLayout.Keywords}) Console.WriteLine($\"Expected keywords {eventLayout.Keywords} but got keywords{{(int)traceEvent.Keywords}} for EventSource={layout.Name} Event={eventLayout.Name}\");");
                     WriteLine($"                    if ((int)traceEvent.Opcode != {eventLayout.Opcode}) Console.WriteLine($\"Expected opcode {eventLayout.Opcode} but got opcode {{(int)traceEvent.Opcode}} for EventSource={layout.Name} Event={eventLayout.Name}\");");
-                    WriteLine($"                    if ((int)traceEvent.Version != {eventLayout.Version}) Console.WriteLine($\"Expected version {eventLayout.Version} but got version {{(int)traceEvent.Version}} for EventSource={layout.Name} Event={eventLayout.Name}\");");
                     WriteLine("                     ++s_successCount;");
+
+                    WriteLine($"                    if (traceEvent.PayloadNames.Count() != {eventLayout.Arguments.Count}) {{ Console.WriteLine($\"Expected {eventLayout.Arguments.Count} payload items but got {{traceEvent.PayloadNames.Count()}} items for EventSource={layout.Name} Event={eventLayout.Name}\"); return; }}");
+                    for (int i = 0; i < eventLayout.Arguments.Count; ++i)
+                    {
+                        WriteLine($"                    if (traceEvent.PayloadNames[{i}] != \"{eventLayout.Arguments[i].Name}\") Console.WriteLine($\"Expected argument name {eventLayout.Arguments[i].Name} but got name {{traceEvent.PayloadNames[{i}]}} for EventSource={layout.Name} Event={eventLayout.Name}\");");
+                    }
 
                     WriteLine("                }");
                 }
