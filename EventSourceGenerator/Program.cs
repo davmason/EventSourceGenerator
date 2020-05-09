@@ -36,15 +36,15 @@ namespace EventSourceGenerator
     {
         static Random s_rand = new Random();
 
-        //static readonly int s_numberOfEventSources = 20;
-        //static readonly int s_maxNumberOfEvents = 50;
-        //static readonly int s_maxNumberOfEventArguments = 10;
-        //static readonly int s_maxArrayElements = 1024;
-
         static readonly int s_numberOfEventSources = 20;
-        static readonly int s_maxNumberOfEvents = 10;
-        static readonly int s_maxNumberOfEventArguments = 10;
-        static readonly int s_maxArrayElements = 5;
+        static readonly int s_maxNumberOfEvents = 200;
+        static readonly int s_maxNumberOfEventArguments = 20;
+        static readonly int s_maxArrayElements = 1024;
+
+        //static readonly int s_numberOfEventSources = 20;
+        //static readonly int s_maxNumberOfEvents = 10;
+        //static readonly int s_maxNumberOfEventArguments = 10;
+        //static readonly int s_maxArrayElements = 5;
 
         static StreamWriter s_output;
 
@@ -244,39 +244,35 @@ namespace EventSourceGenerator
             if (isSelfDescribing && GetRandomBool())
             {
                 // Generate an array type                
-                return (s_rand.Next(12)) switch
+                return (s_rand.Next(10)) switch
                 {
-                    0 => typeof(bool[]),
+                    0 => typeof(ushort[]),
                     1 => typeof(byte[]),
-                    2 => typeof(sbyte[]),
-                    3 => typeof(char[]),
-                    4 => typeof(double[]),
-                    5 => typeof(float[]),
-                    6 => typeof(int[]),
-                    7 => typeof(uint[]),
-                    8 => typeof(long[]),
-                    9 => typeof(ulong[]),
-                    10 => typeof(short[]),
-                    11 => typeof(ushort[]),
+                    2 => typeof(char[]),
+                    3 => typeof(double[]),
+                    4 => typeof(float[]),
+                    5 => typeof(int[]),
+                    6 => typeof(uint[]),
+                    7 => typeof(long[]),
+                    8 => typeof(ulong[]),
+                    9 => typeof(short[]),
                     _ => throw new Exception(),
                 };
             }
             else
             {
-                return (s_rand.Next(12)) switch
+                return (s_rand.Next(10)) switch
                 {
-                    0 => typeof(bool),
+                    0 => typeof(ushort),
                     1 => typeof(byte),
-                    2 => typeof(sbyte),
-                    3 => typeof(char),
-                    4 => typeof(double),
-                    5 => typeof(float),
-                    6 => typeof(int),
-                    7 => typeof(uint),
-                    8 => typeof(long),
-                    9 => typeof(ulong),
-                    10 => typeof(short),
-                    11 => typeof(ushort),
+                    2 => typeof(char),
+                    3 => typeof(double),
+                    4 => typeof(float),
+                    5 => typeof(int),
+                    6 => typeof(uint),
+                    7 => typeof(long),
+                    8 => typeof(ulong),
+                    9 => typeof(short),
                     _ => throw new Exception(),
                 };
             }
@@ -287,6 +283,15 @@ namespace EventSourceGenerator
             WriteLine("    class Program");
             WriteLine("    {");
             WriteLine("        static int s_successCount = 0;");
+            WriteLine("");
+            WriteLine("        static readonly string traceIDValidationMessage = \"Expected ID {0} but got ID {1} for EventSource={2} Event={3}\";");
+            WriteLine("        static readonly string traceVersionValidationMessage = \"Expected version {0} but got version {1} for EventSource={2} Event={3}\";");
+            WriteLine("        static readonly string traceLevelValidationMessage = \"Expected level {0} but got level {1} for EventSource={2} Event={3}\";");
+            WriteLine("        static readonly string traceOpcodeValidationMessage = \"Expected opcode {0} but got opcode {1} for EventSource={2} Event={3}\";");
+            WriteLine("        static readonly string tracePayloadValidationMessage = \"Expected {0} payload items but got {1} items for EventSource={2} Event={3}\";");
+            WriteLine("        static readonly string tracePayloadNamesValidationMessage = \"Expected argument name {0} but got name {1} for EventSource={2} Event={3}\";");
+            WriteLine("        static readonly string tracePayloadValueValidationMessage = \"Expected argument value {0} but got value {1} for EventSource={2} Event={3} Argument={4}\";");
+            WriteLine("");
             WriteLine("        public static EventPipeSession AttachEventPipeSessionToSelf(IEnumerable<EventPipeProvider> providers)");
             WriteLine("        {");
             WriteLine("            int processId = Process.GetCurrentProcess().Id;");
@@ -559,19 +564,28 @@ namespace EventSourceGenerator
 
         private static void GenerateValidateEvents(Dictionary<string, EventSourceLayout> eventSourceLayouts)
         {
-            // TODO: validate payload too... have to rework a lot of stuff though.
             WriteLine("        static void ValidateEvent(TraceEvent traceEvent)");
             WriteLine("        {");
-            WriteLine("        string traceIDValidationMessage = \"Expected ID {0} but got ID {1} for EventSource={2} Event={3}\";");
-            WriteLine("        string traceVersionValidationMessage = \"Expected version {0} but got version {1} for EventSource={2} Event={3}\";");
-            WriteLine("        string traceLevelValidationMessage = \"Expected level {0} but got level {1} for EventSource={2} Event={3}\";");
-            WriteLine("        string traceOpcodeValidationMessage = \"Expected opcode {0} but got opcode {1} for EventSource={2} Event={3}\";");
-            WriteLine("        string tracePayloadValidationMessage = \"Expected {0} payload items but got {1} items for EventSource={2} Event={3}\";");
-            WriteLine("        string tracePayloadNamesValidationMessage = \"Expected argument name {0} but got name {1} for EventSource={2} Event={3}\";");
-            WriteLine("        string tracePayloadValueValidationMessage = \"Expected argument value {0} but got value {1} for EventSource={2} Event={3} Argument={4}\";");
+            foreach (string name in eventSourceLayouts.Keys)
+            {
+                WriteLine($"            if (traceEvent.ProviderName == \"{name}\")");
+                WriteLine("            {");
+                WriteLine($"                if (Validate{name}(traceEvent))");
+                WriteLine("                {");
+                WriteLine("                     ++s_successCount;");
+                WriteLine("                }");
+                WriteLine("");
+                WriteLine("                return;");
+                WriteLine("            }");
+                WriteLine("");
+            }
+            WriteLine("        }");
+            WriteLine("");
 
             foreach (string name in eventSourceLayouts.Keys)
             {
+                WriteLine($"        static bool Validate{name}(TraceEvent traceEvent)");
+                WriteLine("        {");
                 EventSourceLayout layout = eventSourceLayouts[name];
                 WriteLine($"            if (traceEvent.ProviderName == \"{layout.Name}\")");
                 WriteLine("            {");
@@ -584,41 +598,45 @@ namespace EventSourceGenerator
                     // Self describing EventSources don't report their IDs/Versions correctly over ETW/EventPipe
                     if (!layout.IsSelfDescribing)
                     {
-                        WriteLine($"                    if ((int)traceEvent.ID != {eventLayout.ID}) {{ Console.WriteLine(traceIDValidationMessage, {eventLayout.ID}, (int)traceEvent.ID, \"{layout.Name}\", \"{eventLayout.Name}\"); return; }}");
-                        WriteLine($"                    if ((int)traceEvent.Version != {eventLayout.Version}) {{ Console.WriteLine(traceVersionValidationMessage, {eventLayout.Version}, (int)traceEvent.Version, \"{layout.Name}\", \"{eventLayout.Name}\"); return; }}");
+                        WriteLine($"                    if ((int)traceEvent.ID != {eventLayout.ID}) {{ Console.WriteLine(traceIDValidationMessage, {eventLayout.ID}, (int)traceEvent.ID, \"{layout.Name}\", \"{eventLayout.Name}\"); return false; }}");
+                        WriteLine($"                    if ((int)traceEvent.Version != {eventLayout.Version}) {{ Console.WriteLine(traceVersionValidationMessage, {eventLayout.Version}, (int)traceEvent.Version, \"{layout.Name}\", \"{eventLayout.Name}\"); return false; }}");
                     }
                     else
                     {
                         WriteLine("                    // Skipping ID/Version validation because this EventSource is using SelfDescribing events.");
                     }
 
-                    WriteLine($"                    if ((int)traceEvent.Level != {eventLayout.Level}) {{ Console.WriteLine(traceLevelValidationMessage, {eventLayout.Level}, (int)traceEvent.Level, \"{layout.Name}\", \"{eventLayout.Name}\"); return; }}");
-                    WriteLine($"                    if ((int)traceEvent.Keywords != {eventLayout.Keywords}) {{ Console.WriteLine($\"Expected keywords {eventLayout.Keywords} but got keywords{{(int)traceEvent.Keywords}} for EventSource={layout.Name} Event={eventLayout.Name}\"); return; }}");
-                    WriteLine($"                    if ((int)traceEvent.Opcode != {eventLayout.Opcode}) {{ Console.WriteLine(traceOpcodeValidationMessage, {eventLayout.Opcode}, (int)traceEvent.Opcode, \"{layout.Name}\", \"{eventLayout.Name}\"); return; }}");
+                    WriteLine($"                    if ((int)traceEvent.Level != {eventLayout.Level}) {{ Console.WriteLine(traceLevelValidationMessage, {eventLayout.Level}, (int)traceEvent.Level, \"{layout.Name}\", \"{eventLayout.Name}\"); return false; }}");
+                    WriteLine($"                    if ((int)traceEvent.Keywords != {eventLayout.Keywords}) {{ Console.WriteLine($\"Expected keywords {eventLayout.Keywords} but got keywords{{(int)traceEvent.Keywords}} for EventSource={layout.Name} Event={eventLayout.Name}\"); return false; }}");
+                    WriteLine($"                    if ((int)traceEvent.Opcode != {eventLayout.Opcode}) {{ Console.WriteLine(traceOpcodeValidationMessage, {eventLayout.Opcode}, (int)traceEvent.Opcode, \"{layout.Name}\", \"{eventLayout.Name}\"); return false; }}");
                     WriteLine("                     ++s_successCount;");
 
-                    WriteLine($"                    if (traceEvent.PayloadNames.Count() != {eventLayout.Arguments.Count}) {{ Console.WriteLine(tracePayloadValidationMessage, {eventLayout.Arguments.Count}, traceEvent.PayloadNames.Count(), \"{layout.Name}\", \"{eventLayout.Name}\"); return; }}");
+                    WriteLine($"                    if (traceEvent.PayloadNames.Count() != {eventLayout.Arguments.Count}) {{ Console.WriteLine(tracePayloadValidationMessage, {eventLayout.Arguments.Count}, traceEvent.PayloadNames.Count(), \"{layout.Name}\", \"{eventLayout.Name}\"); return false; }}");
                     for (int i = 0; i < eventLayout.Arguments.Count; ++i)
                     {
-                        WriteLine($"                    if (traceEvent.PayloadNames[{i}] != \"{eventLayout.Arguments[i].Name}\") {{ Console.WriteLine(tracePayloadNamesValidationMessage, \"{eventLayout.Arguments[i].Name}\", traceEvent.PayloadNames[{i}], \"{layout.Name}\", \"{eventLayout.Name}\"); return; }}");
+                        WriteLine($"                    if (traceEvent.PayloadNames[{i}] != \"{eventLayout.Arguments[i].Name}\") {{ Console.WriteLine(tracePayloadNamesValidationMessage, \"{eventLayout.Arguments[i].Name}\", traceEvent.PayloadNames[{i}], \"{layout.Name}\", \"{eventLayout.Name}\"); return false; }}");
                         if (eventLayout.Arguments[i].Type.HasElementType)
                         {
-                            WriteLine($"                    if (!ArraysEqual({GetCastString(eventLayout.Arguments[i].Type)}traceEvent.PayloadValue({i}), {eventLayout.ArgumentValues[i]})) {{ Console.WriteLine(tracePayloadValueValidationMessage, {eventLayout.ArgumentValues[i]}, traceEvent.PayloadValue({i}), \"{layout.Name}\", \"{eventLayout.Name}\", \"{eventLayout.Arguments[i].Name}\"); return; }}");
+                            WriteLine($"                    if (!ArraysEqual({GetCastString(eventLayout.Arguments[i].Type)}traceEvent.PayloadValue({i}), {eventLayout.ArgumentValues[i]})) {{ Console.WriteLine(tracePayloadValueValidationMessage, {eventLayout.ArgumentValues[i]}, traceEvent.PayloadValue({i}), \"{layout.Name}\", \"{eventLayout.Name}\", \"{eventLayout.Arguments[i].Name}\"); return false; }}");
                         }
                         else
                         {
-                            WriteLine($"                    if ({GetCastString(eventLayout.Arguments[i].Type)}traceEvent.PayloadValue({i}) != {eventLayout.ArgumentValues[i]}) {{  Console.WriteLine(tracePayloadValueValidationMessage, {eventLayout.ArgumentValues[i]}, traceEvent.PayloadValue({i}), \"{layout.Name}\", \"{eventLayout.Name}\", \"{eventLayout.Arguments[i].Name}\"); return; }}");
+                            WriteLine($"                    if ({GetCastString(eventLayout.Arguments[i].Type)}traceEvent.PayloadValue({i}) != {eventLayout.ArgumentValues[i]}) {{  Console.WriteLine(tracePayloadValueValidationMessage, {eventLayout.ArgumentValues[i]}, traceEvent.PayloadValue({i}), \"{layout.Name}\", \"{eventLayout.Name}\", \"{eventLayout.Arguments[i].Name}\"); return false; }}");
                         }
                     }
 
+                    WriteLine("");
+                    WriteLine("                    return true;");
                     WriteLine("                }");
                 }
 
                 WriteLine("            }");
+                WriteLine("");
+                WriteLine("            return false;");
+                WriteLine("        }");
+                WriteLine("");
             }
 
-            WriteLine("        }");
-            WriteLine("");
         }
 
         private static string GetCastString(Type type)
