@@ -14,10 +14,22 @@ namespace EventSourceGenerator
         public bool IsSelfDescribing { get; internal set; }
     }
 
+    class EventArgumentType
+    {
+        public string Type { get; internal set; }
+        public bool IsArray { get; internal set; }
+        public string ArrayType { get; internal set; }
+
+        public override string ToString()
+        {
+            return Type;
+        }
+    }
+
     class EventArgument
     {
         public string Name { get; internal set; }
-        public Type Type { get; internal set; }
+        public EventArgumentType Type { get; internal set; }
     }
 
     class EventLayout
@@ -36,15 +48,17 @@ namespace EventSourceGenerator
     {
         static Random s_rand = new Random();
 
+#if true
         static readonly int s_numberOfEventSources = 20;
         static readonly int s_maxNumberOfEvents = 200;
         static readonly int s_maxNumberOfEventArguments = 20;
         static readonly int s_maxArrayElements = 1024;
-
-        //static readonly int s_numberOfEventSources = 20;
-        //static readonly int s_maxNumberOfEvents = 10;
-        //static readonly int s_maxNumberOfEventArguments = 10;
-        //static readonly int s_maxArrayElements = 5;
+#else
+        static readonly int s_numberOfEventSources = 20;
+        static readonly int s_maxNumberOfEvents = 10;
+        static readonly int s_maxNumberOfEventArguments = 10;
+        static readonly int s_maxArrayElements = 5;
+#endif
 
         static StreamWriter s_output;
 
@@ -238,7 +252,7 @@ namespace EventSourceGenerator
             };
         }
 
-        private static Type GetRandomEventSourceArgType(bool isSelfDescribing)
+        private static EventArgumentType GetRandomEventSourceArgType(bool isSelfDescribing)
         {
             // TODO: user types would be nice
             if (isSelfDescribing && GetRandomBool())
@@ -246,16 +260,16 @@ namespace EventSourceGenerator
                 // Generate an array type                
                 return (s_rand.Next(10)) switch
                 {
-                    0 => typeof(ushort[]),
-                    1 => typeof(byte[]),
-                    2 => typeof(char[]),
-                    3 => typeof(double[]),
-                    4 => typeof(float[]),
-                    5 => typeof(int[]),
-                    6 => typeof(uint[]),
-                    7 => typeof(long[]),
-                    8 => typeof(ulong[]),
-                    9 => typeof(short[]),
+                    0 => new EventArgumentType() { Type = "ushort[]", IsArray = true, ArrayType = "ushort" },
+                    1 => new EventArgumentType() { Type = "byte[]", IsArray = true, ArrayType = "byte" },
+                    2 => new EventArgumentType() { Type = "char[]", IsArray = true, ArrayType = "char" },
+                    3 => new EventArgumentType() { Type = "double[]", IsArray = true, ArrayType = "double" },
+                    4 => new EventArgumentType() { Type = "float[]", IsArray = true, ArrayType = "float" },
+                    5 => new EventArgumentType() { Type = "int[]", IsArray = true, ArrayType = "int" },
+                    6 => new EventArgumentType() { Type = "uint[]", IsArray = true, ArrayType = "uint" },
+                    7 => new EventArgumentType() { Type = "long[]", IsArray = true, ArrayType = "long" },
+                    8 => new EventArgumentType() { Type = "ulong[]", IsArray = true, ArrayType = "ulong" },
+                    9 => new EventArgumentType() { Type = "short[]", IsArray = true, ArrayType = "short" },
                     _ => throw new Exception(),
                 };
             }
@@ -263,16 +277,16 @@ namespace EventSourceGenerator
             {
                 return (s_rand.Next(10)) switch
                 {
-                    0 => typeof(ushort),
-                    1 => typeof(byte),
-                    2 => typeof(char),
-                    3 => typeof(double),
-                    4 => typeof(float),
-                    5 => typeof(int),
-                    6 => typeof(uint),
-                    7 => typeof(long),
-                    8 => typeof(ulong),
-                    9 => typeof(short),
+                    0 => new EventArgumentType() { Type = "ushort", IsArray = false, ArrayType = null },
+                    1 => new EventArgumentType() { Type = "byte", IsArray = false, ArrayType = null },
+                    2 => new EventArgumentType() { Type = "char", IsArray = false, ArrayType = null },
+                    3 => new EventArgumentType() { Type = "double", IsArray = false, ArrayType = null },
+                    4 => new EventArgumentType() { Type = "float", IsArray = false, ArrayType = null },
+                    5 => new EventArgumentType() { Type = "int", IsArray = false, ArrayType = null },
+                    6 => new EventArgumentType() { Type = "uint", IsArray = false, ArrayType = null },
+                    7 => new EventArgumentType() { Type = "long", IsArray = false, ArrayType = null },
+                    8 => new EventArgumentType() { Type = "ulong", IsArray = false, ArrayType = null },
+                    9 => new EventArgumentType() { Type = "short", IsArray = false, ArrayType = null },
                     _ => throw new Exception(),
                 };
             }
@@ -290,6 +304,7 @@ namespace EventSourceGenerator
             WriteLine("        static readonly string traceOpcodeValidationMessage = \"Expected opcode {0} but got opcode {1} for EventSource={2} Event={3}\";");
             WriteLine("        static readonly string tracePayloadValidationMessage = \"Expected {0} payload items but got {1} items for EventSource={2} Event={3}\";");
             WriteLine("        static readonly string tracePayloadNamesValidationMessage = \"Expected argument name {0} but got name {1} for EventSource={2} Event={3}\";");
+            WriteLine("        static readonly string tracePayloadTypeValidationMessage = \"Expected type {0} but got type {1} for EventSource={2} Event={3} Argument={4}\";");
             WriteLine("        static readonly string tracePayloadValueValidationMessage = \"Expected argument value {0} but got value {1} for EventSource={2} Event={3} Argument={4}\";");
             WriteLine("");
             WriteLine("        public static EventPipeSession AttachEventPipeSessionToSelf(IEnumerable<EventPipeProvider> providers)");
@@ -411,82 +426,81 @@ namespace EventSourceGenerator
             }
 
             WriteLine(");");
-            WriteLine("");
         }
 
         private static string GenerateRandomArgumentValue(EventArgument argument)
         {
             int arrayElements = s_rand.Next(s_maxArrayElements);
-            Type type = argument.Type;
+            EventArgumentType argumentType = argument.Type;
 
-            if (type.IsArray)
+            if (argumentType.IsArray)
             {
                 object[] objArray = null;
                 string castString = null;
-                if (type == typeof(bool[]))
+                if (argumentType.Type == "bool[]")
                 {
                     castString = "(bool)";
                     objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => GetRandomBool().ToString().ToLower()).ToArray();
                 }
-                else if (type == typeof(byte[]))
+                else if (argumentType.Type == "byte[]")
                 {
                     castString = "(byte)";
                     objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(byte.MinValue, byte.MaxValue)).ToArray();
                 }
-                else if (type == typeof(sbyte[]))
+                else if (argumentType.Type == "sbyte[]")
                 {
                     castString = "(sbyte)";
                     objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(sbyte.MinValue, sbyte.MaxValue)).ToArray();
                 }
-                else if (type == typeof(char[]))
+                else if (argumentType.Type == "char[]")
                 {
                     castString = "(char)";
                     objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(char.MinValue, char.MaxValue)).ToArray();
                 }
-                else if (type == typeof(decimal[]))
+                else if (argumentType.Type == "decimal[]")
                 {
                     objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(int.MinValue, int.MaxValue)).ToArray();
                 }
-                else if (type == typeof(double[]))
+                else if (argumentType.Type == "double[]")
                 {
                     objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.NextDouble()).ToArray();
                 }
-                else if (type == typeof(float[]))
+                else if (argumentType.Type == "float[]")
                 {
                     castString = "(float)";
                     objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.NextDouble()).ToArray();
                 }
-                else if (type == typeof(int[]))
+                else if (argumentType.Type == "int[]")
                 {
                     objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(int.MinValue, int.MaxValue)).ToArray();
                 }
-                else if (type == typeof(uint[]))
+                else if (argumentType.Type == "uint[]")
                 {
                     castString = "(uint)";
                     objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(0, int.MaxValue)).ToArray();
                 }
-                else if (type == typeof(long[]))
+                else if (argumentType.Type == "long[]")
                 {
                     objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(int.MinValue, int.MaxValue)).ToArray();
                 }
-                else if (type == typeof(ulong[]))
+                else if (argumentType.Type == "ulong[]")
                 {
                     castString = "(ulong)";
                     objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(0, int.MaxValue)).ToArray();
                 }
-                else if (type == typeof(short[]))
+                else if (argumentType.Type == "short[]")
                 {
                     castString = "(short)";
                     objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(short.MinValue, short.MaxValue)).ToArray();
                 }
-                else if (type == typeof(ushort[]))
+                else if (argumentType.Type == "ushort[]")
                 {
                     castString = "(ushort)";
                     objArray = Enumerable.Range(0, arrayElements).Select<int, object>(i => s_rand.Next(ushort.MinValue, ushort.MaxValue)).ToArray();
                 }
 
                 StringBuilder arrayString = new StringBuilder();
-                arrayString.Append($"new {type} {{");
+                arrayString.Append($"new {argumentType} {{");
                 for (int i = 0; i < objArray.Length; ++i)
                 {
                     if (castString != null)
@@ -504,55 +518,55 @@ namespace EventSourceGenerator
 
                 return arrayString.ToString();
             }
-            else if (type == typeof(bool))
+            else if (argumentType.Type == "bool")
             {
                 return GetRandomBool().ToString().ToLower();
             }
-            else if (type == typeof(byte))
+            else if (argumentType.Type == "byte")
             {
                 return "(byte)" + s_rand.Next(byte.MinValue, byte.MaxValue).ToString();
             }
-            else if (type == typeof(sbyte))
+            else if (argumentType.Type == "sbyte")
             {
                 return "(sbyte)" + s_rand.Next(sbyte.MinValue, sbyte.MaxValue).ToString();
             }
-            else if (type == typeof(char))
+            else if (argumentType.Type == "char")
             {
                 return "(char)" + s_rand.Next(char.MinValue, char.MaxValue).ToString();
             }
-            else if (type == typeof(decimal))
+            else if (argumentType.Type == "decimal")
             {
                 return s_rand.Next(int.MinValue, int.MaxValue).ToString();
             }
-            else if (type == typeof(double))
+            else if (argumentType.Type == "double")
             {
                 return s_rand.NextDouble().ToString();
             }
-            else if (type == typeof(float))
+            else if (argumentType.Type == "float")
             {
                 return "(float)" + s_rand.NextDouble().ToString();
             }
-            else if (type == typeof(int))
+            else if (argumentType.Type == "int")
             {
                 return s_rand.Next(int.MinValue, int.MaxValue).ToString();
             }
-            else if (type == typeof(uint))
+            else if (argumentType.Type == "uint")
             {
                 return "(uint)" + s_rand.Next(0, int.MaxValue).ToString();
             }
-            else if (type == typeof(long))
+            else if (argumentType.Type == "long")
             {
                 return s_rand.Next(int.MinValue, int.MaxValue).ToString();
             }
-            else if (type == typeof(ulong))
+            else if (argumentType.Type == "ulong")
             {
                 return "(ulong)" + s_rand.Next(0, int.MaxValue).ToString();
             }
-            else if (type == typeof(short))
+            else if (argumentType.Type == "short")
             {
                 return "(short)" + s_rand.Next(short.MinValue, short.MaxValue).ToString();
             }
-            else if (type == typeof(ushort))
+            else if (argumentType.Type == "ushort")
             {
                 return "(ushort)" + s_rand.Next(0, ushort.MaxValue).ToString();
             }
@@ -615,13 +629,15 @@ namespace EventSourceGenerator
                     for (int i = 0; i < eventLayout.Arguments.Count; ++i)
                     {
                         WriteLine($"                    if (traceEvent.PayloadNames[{i}] != \"{eventLayout.Arguments[i].Name}\") {{ Console.WriteLine(tracePayloadNamesValidationMessage, \"{eventLayout.Arguments[i].Name}\", traceEvent.PayloadNames[{i}], \"{layout.Name}\", \"{eventLayout.Name}\"); return false; }}");
-                        if (eventLayout.Arguments[i].Type.HasElementType)
+                        //WriteLine("        static readonly string tracePayloadTypeValidationMessage = \"Expected type {0} but got type {1} for EventSource={2} Event={3} Argument={4}\";");
+                        WriteLine($"                    if (traceEvent.PayloadValue({i}).GetType() != typeof({eventLayout.Arguments[i].Type})) {{ Console.WriteLine(tracePayloadTypeValidationMessage, \"{eventLayout.Arguments[i].Type}\", traceEvent.PayloadValue({i}).GetType(), \"{layout.Name}\", \"{eventLayout.Name}\", \"{eventLayout.Arguments[i].Name}\"); return false; }}");
+                        if (eventLayout.Arguments[i].Type.IsArray)
                         {
-                            WriteLine($"                    if (!ArraysEqual({GetCastString(eventLayout.Arguments[i].Type)}traceEvent.PayloadValue({i}), {eventLayout.ArgumentValues[i]})) {{ Console.WriteLine(tracePayloadValueValidationMessage, {eventLayout.ArgumentValues[i]}, traceEvent.PayloadValue({i}), \"{layout.Name}\", \"{eventLayout.Name}\", \"{eventLayout.Arguments[i].Name}\"); return false; }}");
+                            WriteLine($"                    if (!ArraysEqual(({eventLayout.Arguments[i].Type})traceEvent.PayloadValue({i}), {eventLayout.ArgumentValues[i]})) {{ Console.WriteLine(tracePayloadValueValidationMessage, {eventLayout.ArgumentValues[i]}, traceEvent.PayloadValue({i}), \"{layout.Name}\", \"{eventLayout.Name}\", \"{eventLayout.Arguments[i].Name}\"); return false; }}");
                         }
                         else
                         {
-                            WriteLine($"                    if ({GetCastString(eventLayout.Arguments[i].Type)}traceEvent.PayloadValue({i}) != {eventLayout.ArgumentValues[i]}) {{  Console.WriteLine(tracePayloadValueValidationMessage, {eventLayout.ArgumentValues[i]}, traceEvent.PayloadValue({i}), \"{layout.Name}\", \"{eventLayout.Name}\", \"{eventLayout.Arguments[i].Name}\"); return false; }}");
+                            WriteLine($"                    if (({eventLayout.Arguments[i].Type})traceEvent.PayloadValue({i}) != {eventLayout.ArgumentValues[i]}) {{  Console.WriteLine(tracePayloadValueValidationMessage, {eventLayout.ArgumentValues[i]}, traceEvent.PayloadValue({i}), \"{layout.Name}\", \"{eventLayout.Name}\", \"{eventLayout.Arguments[i].Name}\"); return false; }}");
                         }
                     }
 
@@ -637,118 +653,6 @@ namespace EventSourceGenerator
                 WriteLine("");
             }
 
-        }
-
-        private static string GetCastString(Type type)
-        {
-            if (type == typeof(bool[]))
-            {
-                return "(bool[])";
-            }
-            else if (type == typeof(byte[]))
-            {
-                return "(byte[])";
-            }
-            else if (type == typeof(sbyte[]))
-            {
-                return "(sbyte[])";
-            }
-            else if (type == typeof(char[]))
-            {
-                return "(char[])";
-            }
-            else if (type == typeof(decimal[]))
-            {
-                return "(decimal[])";
-            }
-            else if (type == typeof(double[]))
-            {
-                return "(double[])";
-            }
-            else if (type == typeof(float[]))
-            {
-                return "(float[])";
-            }
-            else if (type == typeof(int[]))
-            {
-                return "(int[])";
-            }
-            else if (type == typeof(uint[]))
-            {
-                return "(uint[])";
-            }
-            else if (type == typeof(long[]))
-            {
-                return "(long[])";
-            }
-            else if (type == typeof(ulong[]))
-            {
-                return "(ulong[])";
-            }
-            else if (type == typeof(short[]))
-            {
-                return "(short[])";
-            }
-            else if (type == typeof(ushort[]))
-            {
-                return "(ushort[])";
-            }
-            else if (type == typeof(bool))
-            {
-                return "(bool)";
-            }
-            else if (type == typeof(byte))
-            {
-                return "(byte)";
-            }
-            else if (type == typeof(sbyte))
-            {
-                return "(sbyte)";
-            }
-            else if (type == typeof(char))
-            {
-                return "(char)";
-            }
-            else if (type == typeof(decimal))
-            {
-                return "(decimal)";
-            }
-            else if (type == typeof(double))
-            {
-                return "(double)";
-            }
-            else if (type == typeof(float))
-            {
-                return "(float)";
-            }
-            else if (type == typeof(int))
-            {
-                return "(int)";
-            }
-            else if (type == typeof(uint))
-            {
-                return "(uint)";
-            }
-            else if (type == typeof(long))
-            {
-                return "(long)";
-            }
-            else if (type == typeof(ulong))
-            {
-                return "(ulong)";
-            }
-            else if (type == typeof(short))
-            {
-                return "(int)";
-            }
-            else if (type == typeof(ushort))
-            {
-                return "(ushort)";
-            }
-            else
-            {
-                throw new ArgumentException();
-            }
         }
 
         private static bool GetRandomBool()
